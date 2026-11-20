@@ -1,9 +1,9 @@
 name: Actualizar pronóstico
 on:
   schedule:
-    - cron: "0 8 * * *"    # 5:00 en Rio
-    - cron: "40 8 * * *"   # 5:40 en Rio, por si la primera se atrasa
-    - cron: "0 15 * * *"   # 12:00 en Rio, para la tarde
+    - cron: "0 8 20-30 11 *"    # 5:00 en Rio, del 20 al 30/11
+    - cron: "40 8 20-30 11 *"   # 5:40 en Rio, por si la primera se atrasa
+    - cron: "0 15 20-30 11 *"   # 12:00 en Rio, para la tarde
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,10 +18,13 @@ jobs:
       - name: Lluvia por hora de Meteored
         continue-on-error: true
         run: python3 fetch_meteored.py forecast.json
+      - name: Recomendación del día
+        continue-on-error: true
+        run: node recommend.js forecast.json > summary.txt && cat summary.txt
       - name: Guardar
         run: |
           git config user.name "praia-bot"
           git config user.email "praia-bot@users.noreply.github.com"
-          git add forecast.json
+          git add forecast.json summary.txt
           git diff --cached --quiet || git commit -m "Pronóstico $(date -u +%Y-%m-%dT%H:%MZ)"
           git push
