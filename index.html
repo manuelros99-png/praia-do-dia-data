@@ -569,6 +569,7 @@ async function paintVotes(){
   const ids = Object.keys(VOTES).filter(id => VOTES[id] && VOTES[id].day === DAY);
   if (USER && ids.length){ try { PROFILES = await USER.profiles(ids); } catch(e){} }
   document.querySelectorAll("[data-going]").forEach(g => {
+    g.hidden = !(DB && MY_ID);
     const who = ids.filter(id => VOTES[id].beach === g.dataset.going);
     g.replaceChildren();
     if (!who.length){ g.append(DB && MY_ID ? "Nadie se anotó todavía" : ""); return; }
