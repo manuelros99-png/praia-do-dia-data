@@ -5,14 +5,21 @@ Fuente: Open-Meteo (gratis, sin clave). Guarda hoy + 2 días, más la lluvia de 
 (para avisar si el agua puede estar contaminada después de lluvias).
 Uso: python3 fetch_forecast.py [salida.json]
 """
-import json, sys, urllib.request, datetime
+import json, sys, time, urllib.request, datetime
 
 LAT, LON = -22.99, -43.19  # frente a Copacabana/Arpoador
 TZ = "America/Sao_Paulo"
 
-def get(url):
-    with urllib.request.urlopen(url, timeout=30) as r:
-        return json.load(r)
+def get(url, tries=4):
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(url, timeout=40) as r:
+                return json.load(r)
+        except Exception as e:
+            if i == tries - 1:
+                raise
+            print(f"reintento {i+1}: {e}")
+            time.sleep(20 * (i + 1))
 
 marine = get(
     "https://marine-api.open-meteo.com/v1/marine"
