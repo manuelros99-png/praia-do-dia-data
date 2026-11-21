@@ -747,10 +747,18 @@ async function boot(){
   const db = (window.claude && window.claude.use) ? await claude.use("db") : null;
   if (!db){
     // Versión pública (GitHub Pages): el pronóstico está publicado al lado de la página.
-    try {
+    let last = 0;
+    const load = async () => {
       const r = await fetch("forecast.json?t=" + Date.now(), {cache: "no-store"});
       if (!r.ok) throw new Error(r.status);
-      DATA = await r.json(); clearTimeout(timer); render();
+      const d = await r.json(); last = Date.now();
+      if (!DATA || d.updatedAt !== DATA.updatedAt){ DATA = d; render(); }
+    };
+    // Se actualiza sola: cada 15 min y cada vez que volvés a abrir la app.
+    setInterval(() => load().catch(() => {}), 15 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last > 5 * 60 * 1000) load().catch(() => {}); });
+    try {
+      await load(); clearTimeout(timer);
     } catch(e){
       clearTimeout(timer); document.querySelector(".skel")?.remove();
       loading.textContent = window.claude ? "Para ver el pronóstico abrí esta página con una cuenta de claude.ai que tenga acceso." : "No pude cargar el pronóstico. Revisá la conexión y recargá.";

@@ -1,9 +1,9 @@
 name: Actualizar pronóstico
 on:
   schedule:
-    - cron: "0 8 20-30 11 *"    # 5:00 en Rio, del 20 al 30/11
-    - cron: "40 8 20-30 11 *"   # 5:40 en Rio, por si la primera se atrasa
-    - cron: "0 15 20-30 11 *"   # 12:00 en Rio, para la tarde
+    # Cada hora al minuto 17 (evita la congestión de la hora en punto, cuando GitHub
+    # suele saltear corridas), del 20 al 30 de noviembre, de 4:17 a 21:17 hora de Rio.
+    - cron: "17 7-23,0 20-30 11 *"
   workflow_dispatch:
 permissions:
   contents: write
