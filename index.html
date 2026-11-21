@@ -58,6 +58,12 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .rep-seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
 .report.on-sky .rep-seg button[aria-pressed="true"]{background:#fff;color:#0b3d66}
 .rep-status{font-size:13px;color:var(--muted)}
+.rep-shot{display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;border-radius:10px;border:1.5px dashed var(--blue);color:var(--blue);font:600 14px var(--f-body);cursor:pointer}
+.report.on-sky .rep-shot{border-color:rgba(255,255,255,.7);color:#fff}
+.rep-shot svg{width:18px;height:18px}
+.rep-shot:focus-within{outline:2px solid var(--blue);outline-offset:2px}
+.report.busy{opacity:.7;pointer-events:none}
+.sr-only{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .report.on-sky .rep-status{color:var(--on-sky-2)}
 .rep-status b{color:inherit;font-weight:700}
 .brand{font:700 17px var(--f-display);letter-spacing:-.02em;white-space:nowrap}
@@ -520,7 +526,7 @@ const COORDS = {posto6:[-22.9866,-43.1883], copa:[-22.9745,-43.1862], arpoador:[
 const SVG_WALK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M10.5 8.5 8 20h2.2l1.6-7 2.2 2.2V20h2v-6l-2.2-2.2.6-3A6 6 0 0 0 19 12v-2a4 4 0 0 1-3.4-1.9l-1-1.6A2 2 0 0 0 12 5.6L7 7.7V12h2V9z"/></svg>';
 const SVG_CAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11a2 2 0 0 1 2 2v4h-2v2h-3v-2H8v2H5v-2H3v-4a2 2 0 0 1 2-2zm2.1 0h9.8l-1-3H8.1zM6.5 15a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>';
 
-let VOTES = {}, MY_ID = null, USER = null, DB = null, PROFILES = {}, NOW_H = null, REPORTS = {}, RELOAD = null;
+let VOTES = {}, MY_ID = null, USER = null, DB = null, PROFILES = {}, NOW_H = null, REPORTS = {}, RELOAD = null, SAMPLE = null, CAN_IMG = false;
 const LEVELS = {poca:{c:0.2, txt:"Poca gente"}, media:{c:0.5, txt:"Gente media"}, llena:{c:0.88, txt:"Llena"}};
 // Último reporte del grupo para una playa, válido 2 horas y solo para hoy.
 function reportFor(beachId, day){
@@ -535,8 +541,33 @@ function reportBox(b, onSky){
   const q = el("div","rep-q", "¿Cuánta gente hay ahora?");
   const seg = el("div","rep-seg"); seg.setAttribute("role","group"); seg.setAttribute("aria-label", `Reportar gente en ${b.name}`);
   Object.entries(LEVELS).forEach(([k, v]) => { const x = el("button", null, v.txt.replace(" gente","")); x.type = "button"; x.dataset.level = k; x.onclick = () => sendReport(b, k); seg.append(x); });
-  box.append(q, seg, el("div","rep-status"));
+  const shot = el("label","rep-shot"); shot.hidden = true;
+  const inp = el("input"); inp.type = "file"; inp.accept = "image/*"; inp.className = "sr-only";
+  inp.setAttribute("aria-label", `Analizar una captura de la cámara de ${b.name}`);
+  inp.onchange = () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) analyzePhoto(b, f, box); };
+  shot.append('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>', "Analizar captura de la cámara", inp);
+  shot.firstChild.remove(); shot.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>');
+  box.append(q, seg, shot, el("div","rep-status"));
   return box;
+}
+async function analyzePhoto(b, file, box){
+  if (!SAMPLE || !DB || !MY_ID){ toast("Esto funciona en la versión de Claude con tu cuenta."); return; }
+  const st = box.querySelector(".rep-status"); st.textContent = "Claude está mirando la captura…";
+  box.classList.add("busy");
+  const prompt = `Sos guardavidas en Rio de Janeiro. La imagen es una captura de una cámara en vivo de la playa ${b.name}. Mirala y respondé SOLO con un objeto JSON, sin otro texto, con esta forma:
+{"gente":"poca|media|llena","mar":"planchado|olas chicas|olas medianas|olas grandes","olas_m":0.5,"cielo":"sol|parcial|nublado|lluvia|bruma","hora":"HH:MM si se lee en la imagen, si no null","resumen":"una frase corta en español rioplatense para un grupo de 8 amigos"}
+Criterios de gente: poca = mucha arena libre; media = hay grupos pero entra un grupo de 8 junto; llena = cuesta encontrar lugar. Si no se ve la arena, estimá por la gente en el agua y aclaralo en el resumen. olas_m es la altura aproximada de las olas que rompen en la orilla, en metros. Si la imagen no es una playa, respondé {"error":"explicación corta"}.`;
+  try {
+    const r = await SAMPLE.json(prompt, {images: [file], cache: false});
+    if (!r || r.error || !LEVELS[r.gente]){ st.textContent = (r && r.error) ? `No pude usar esa imagen: ${r.error}` : "No pude leer la cantidad de gente en esa imagen. Probá con otra captura."; return; }
+    const extra = [r.mar ? `Mar ${r.mar}${typeof r.olas_m === "number" ? ` (~${fmt(r.olas_m)} m)` : ""}` : "", r.cielo ? `cielo ${r.cielo}` : "", r.hora ? `captura de las ${r.hora}` : ""].filter(Boolean).join(", ");
+    const note = `${r.resumen || ""}${extra ? " " + extra + "." : ""}`.trim();
+    await DB.doc("reports/" + MY_ID).set({beach: b.id, level: r.gente, at: Date.now(), source: "foto", note});
+    toast(`Claude vio: ${LEVELS[r.gente].txt.toLowerCase()} en ${b.short || b.name}.`);
+  } catch(e){
+    const c = e && e.code;
+    st.textContent = c === "not_granted" ? "Para analizar fotos tenés que permitir que la app use Claude." : c === "rate_limited" ? "Demasiados pedidos seguidos. Probá en un rato." : c === "image_rejected" ? "Esa imagen no sirve (formato o tamaño). Probá con otra captura." : "No se pudo analizar. Probá de nuevo.";
+  } finally { box.classList.remove("busy"); }
 }
 async function sendReport(b, level){
   if (!DB || !MY_ID){ toast("Para reportar abrí la versión de Claude con tu cuenta."); return; }
@@ -549,10 +580,11 @@ async function paintReports(){
   if (USER && ids.length){ try { Object.assign(PROFILES, await USER.profiles(ids)); } catch(e){} }
   document.querySelectorAll("[data-report]").forEach(box => {
     box.hidden = !(DB && MY_ID && today);
+    const shot = box.querySelector(".rep-shot"); if (shot) shot.hidden = !(SAMPLE && CAN_IMG);
     const r = reportFor(box.dataset.report, DAY), st = box.querySelector(".rep-status");
     box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", !!(r && r.who === MY_ID && r.level === x.dataset.level)));
     if (!r){ st.textContent = "Nadie reportó en las últimas 2 horas. Si estás ahí, tocá una opción."; return; }
-    const who = r.source === "camara" ? "Claude mirando la cámara" : r.who === MY_ID ? "vos" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0];
+    const who = r.source === "camara" ? "Claude mirando la cámara" : r.source === "foto" ? (r.who === MY_ID ? "vos con una captura que analizó Claude" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0] + " con una captura que analizó Claude") : r.who === MY_ID ? "vos" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0];
     st.replaceChildren(el("b", null, LEVELS[r.level].txt), ` · ${ago(r.at)}, lo reportó ${who}.${r.note ? " " + r.note : ""} Ya cuenta en el puntaje.`);
   });
 }
@@ -857,6 +889,11 @@ async function boot(){
     if (!d){ loading.textContent = "Todavía no hay pronóstico guardado. Se carga solo cada mañana."; document.querySelector(".skel")?.remove(); return; }
     DATA = d; render();
   }, err => { clearTimeout(timer); loading.textContent = "No pude leer el pronóstico (" + (err && err.code || "error") + "). Recargá la página."; });
+  try {
+    SAMPLE = await claude.use("sample");
+    const lim = SAMPLE ? await SAMPLE.limits().catch(() => null) : null;
+    CAN_IMG = !!(lim && lim.images);
+  } catch(e){}
   try {
     USER = await claude.use("user");
     MY_ID = USER ? await USER.id() : null;
