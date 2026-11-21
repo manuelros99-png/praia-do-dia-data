@@ -255,27 +255,27 @@ const BEACHES = [
   {id:"posto6", short:"Posto 6", group:"copa", space:0.3, field:"Arena angosta en la punta, sin canchas", name:"Copacabana · Posto 6", facing:120, exp:0.55, crowd:0.75, walk:4,
    baths:"Posto 6: baño y ducha (pagos) + quiosques", bathS:0.9,
    tip:"La punta del Forte es la parte más mansa de Copacabana. Está a 4 minutos caminando.",
-   cam:"https://www.skylinewebcams.com/webcam/brasil/rio-de-janeiro/rio-de-janeiro/copacabana.html"},
+   cam:"https://surfconnect.com.br/cameras/all/35", camPaid:false},
   {id:"copa", short:"Posto 4–5", group:"copa", space:1.0, field:"Arena muy ancha, canchas de fútbol y vóley", name:"Copacabana · Posto 4–5", facing:135, exp:0.8, crowd:0.7, walk:12,
    baths:"Postos 4 y 5: baño y ducha + quiosques", bathS:0.9,
    tip:"Más arena para el grupo que en Posto 6 y algo más de ola.",
-   cam:"https://www.skylinewebcams.com/webcam/brasil/rio-de-janeiro/rio-de-janeiro/copacabana.html"},
+   cam:"https://www.skylinewebcams.com/webcam/brasil/rio-de-janeiro/rio-de-janeiro/copacabana.html", camPaid:false},
   {id:"arpoador", short:"Arpoador", group:"ipa", space:0.4, field:"Arena media; se llena rápido", name:"Arpoador", facing:205, exp:0.95, crowd:0.85, walk:8,
    baths:"Posto 7: baño y ducha (pagos) + quiosques", bathS:0.8,
    tip:"Buenas olas para jacaré cuando el mar está chico. Lejos de las piedras. Explota al atardecer.",
-   cam:"https://www.surf-forecast.com/breaks/Arpoador/webcams/latest"},
+   cam:"https://surfconnect.com.br/cameras/all/1", camPaid:true},
   {id:"ipanema", short:"Posto 8–9", group:"ipa", space:0.6, field:"Arena media, redes de futevôlei y mucha altinha", name:"Ipanema · Posto 8–9", facing:175, exp:1.0, crowd:0.95, walk:20, uber:8,
    baths:"Postos 8 y 9: baño y ducha + quiosques", bathS:0.9,
    tip:"Rompe con más fuerza. Ideal para barrenar si el mar está por debajo de 1 m.",
-   cam:"https://surfconnect.com.br/"},
+   cam:"https://surfconnect.com.br/cameras/all/34", camPaid:false},
   {id:"leblon", space:0.6, field:"Arena media, algunas canchas", name:"Leblon · Posto 11–12", facing:170, exp:0.85, crowd:0.6, uber:12, canal:true,
    baths:"Postos 11 y 12: baño y ducha + quiosques", bathS:0.9,
    tip:"El Posto 12 es la parte más tranquila. El canal del Jardim de Alah ensucia el agua después de lluvias.",
-   cam:"https://surfconnect.com.br/"},
+   cam:"https://surfconnect.com.br/cameras/all/15", camPaid:true},
   {id:"leme", space:0.75, field:"Arena ancha, canchas cerca del Posto 2", name:"Leme", facing:140, exp:0.6, crowd:0.5, uber:10,
    baths:"Postos 1 y 2: baño y ducha + quiosques", bathS:0.85,
    tip:"El rincón junto a la Pedra do Leme es de lo más calmo de la zona y suele tener menos gente.",
-   cam:"https://www.skylinewebcams.com/webcam/brasil/rio-de-janeiro/rio-de-janeiro/copacabana.html"},
+   cam:"https://surfconnect.com.br/cameras/all/8", camPaid:true},
   {id:"vermelha", space:0.1, field:"Playa chica, no hay lugar para jugar", name:"Praia Vermelha (Urca)", facing:160, exp:0.3, crowd:0.75, uber:15, small:true,
    baths:"Pocos: bar y restaurante de al lado, sin posto", bathS:0.4,
    tip:"Agua casi planchada, sin olas para barrenar. Es chica: con 8 personas conviene llegar antes de las 10.",
@@ -283,7 +283,7 @@ const BEACHES = [
   {id:"barra", space:1.0, field:"Arena enorme, canchas y espacio de sobra", name:"Barra · Pepê / Posto 4", facing:165, exp:1.15, crowd:0.5, uber:35,
    baths:"Postos y quiosques con baño en toda la orla", bathS:0.8,
    tip:"Mucho espacio para el grupo, pero mar abierto y más fuerte. Respeten las banderas de los guardavidas.",
-   cam:"https://surfconnect.com.br/"},
+   cam:"https://surfconnect.com.br/cameras/all/3", camPaid:false},
 ];
 const HOLIDAYS = {"2026-11-20":"Consciência Negra","2026-12-25":"Navidad","2026-12-31":"Réveillon","2027-01-01":"Año Nuevo","2027-01-20":"São Sebastião","2027-02-08":"Carnaval","2027-02-09":"Carnaval"};
 const CROWD_HOUR = {9:.6,10:.72,11:.85,12:.95,13:1,14:1,15:.95,16:.88,17:.78};
@@ -573,8 +573,11 @@ function routeUrl(b){
 function mapsUrl(b){ const [la, lo] = COORDS[b.id]; return `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=${b.walk && b.walk <= 20 ? "walking" : "driving"}`; }
 function btn(cls, html, href, label){ const a = el("a", "btn " + cls); a.innerHTML = html; a.href = href; a.target = "_blank"; a.rel = "noopener"; if (label) a.setAttribute("aria-label", label); return a; }
 function liveBtn(b, cls){
-  if (b.cam && b.cam.includes("surfconnect")) return btn(cls, '<span class="rec"></span>SurfConnect', "https://surfconnect.com.br/login", `Cámara de ${b.name} en SurfConnect: necesita cuenta gratis o pase diario`);
-  return b.cam ? btn(cls, '<span class="rec"></span>Ver en vivo', b.cam, `Cámara en vivo de ${b.name}, abre en otra pestaña`) : btn(cls, "Buscar cámara", "https://argosatlas.com/map", "Buscar cámara en Argos Atlas"); }
+  if (!b.cam) return btn(cls, "Buscar cámara", "https://argosatlas.com/map", "Buscar cámara en Argos Atlas");
+  const sc = b.cam.includes("surfconnect");
+  return btn(cls, '<span class="rec"></span>' + (b.camPaid ? "En vivo · Premium" : "Ver en vivo"), b.cam,
+    `Cámara en vivo de ${b.name}${sc ? " en SurfConnect" : ""}${b.camPaid ? ", necesita plan Premium" : ""}, abre en otra pestaña`);
+}
 function goBtn(b, cls){ const walk = b.walk && b.walk <= 20; return btn(cls, (walk ? SVG_WALK : SVG_CAR) + (walk ? `${b.walk} min` : `Uber ${b.uber} min`), routeUrl(b), walk ? `Cómo llegar caminando a ${b.name}` : `Pedir Uber a ${b.name}`); }
 
 function tides(day){
