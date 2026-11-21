@@ -572,7 +572,9 @@ function routeUrl(b){
 }
 function mapsUrl(b){ const [la, lo] = COORDS[b.id]; return `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=${b.walk && b.walk <= 20 ? "walking" : "driving"}`; }
 function btn(cls, html, href, label){ const a = el("a", "btn " + cls); a.innerHTML = html; a.href = href; a.target = "_blank"; a.rel = "noopener"; if (label) a.setAttribute("aria-label", label); return a; }
-function liveBtn(b, cls){ return b.cam ? btn(cls, '<span class="rec"></span>Ver en vivo', b.cam, `Cámara en vivo de ${b.name}, abre en otra pestaña`) : btn(cls, "Buscar cámara", "https://argosatlas.com/map", "Buscar cámara en Argos Atlas"); }
+function liveBtn(b, cls){
+  if (b.cam && b.cam.includes("surfconnect")) return btn(cls, '<span class="rec"></span>SurfConnect', "https://surfconnect.com.br/login", `Cámara de ${b.name} en SurfConnect: necesita cuenta gratis o pase diario`);
+  return b.cam ? btn(cls, '<span class="rec"></span>Ver en vivo', b.cam, `Cámara en vivo de ${b.name}, abre en otra pestaña`) : btn(cls, "Buscar cámara", "https://argosatlas.com/map", "Buscar cámara en Argos Atlas"); }
 function goBtn(b, cls){ const walk = b.walk && b.walk <= 20; return btn(cls, (walk ? SVG_WALK : SVG_CAR) + (walk ? `${b.walk} min` : `Uber ${b.uber} min`), routeUrl(b), walk ? `Cómo llegar caminando a ${b.name}` : `Pedir Uber a ${b.name}`); }
 
 function tides(day){
