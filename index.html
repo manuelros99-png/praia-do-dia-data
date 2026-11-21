@@ -45,6 +45,21 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bar)}
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--sep)}
 .topbar-in{max-width:600px;margin:0 auto;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;align-items:center;gap:12px}
+.refresh{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--fill);color:var(--blue);display:grid;place-items:center;cursor:pointer}
+.refresh svg{width:19px;height:19px}
+.refresh.spin svg{animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.report{display:grid;gap:8px;position:relative;z-index:1;background:var(--fill);border-radius:16px;padding:12px}
+.report.on-sky{background:rgba(255,255,255,.16)}
+.rep-q{font:600 14px var(--f-body)}
+.rep-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.rep-seg button{border:0;border-radius:10px;padding:9px 6px;font:600 14px var(--f-body);background:var(--card);color:var(--ink);cursor:pointer;min-height:40px}
+.report.on-sky .rep-seg button{background:rgba(255,255,255,.22);color:#fff}
+.rep-seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.report.on-sky .rep-seg button[aria-pressed="true"]{background:#fff;color:#0b3d66}
+.rep-status{font-size:13px;color:var(--muted)}
+.report.on-sky .rep-status{color:var(--on-sky-2)}
+.rep-status b{color:inherit;font-weight:700}
 .brand{font:700 17px var(--f-display);letter-spacing:-.02em;white-space:nowrap}
 .days{flex:1;display:flex;background:var(--fill);border-radius:10px;padding:2px;gap:2px;min-width:0}
 .days button{flex:1;min-width:0;font:500 13.5px var(--f-body);background:none;border:0;border-radius:8px;padding:6px 4px;color:var(--ink);cursor:pointer;text-transform:capitalize;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -225,6 +240,7 @@ button.rtile{border:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
 <div class="topbar"><div class="topbar-in">
   <span class="brand">Praia do Dia</span>
   <nav class="days" id="days" aria-label="Elegir día"></nav>
+  <button type="button" class="refresh" id="refresh" aria-label="Actualizar todo ahora" title="Actualizar todo ahora" onclick="refreshAll(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 </div></div>
 <div class="wrap">
   <main id="app" style="display:contents">
@@ -322,7 +338,8 @@ function beachHour(b, m, w, mi, wi, day){
   const dayF = HOLIDAYS[day] || dow === 0 || dow === 6 ? 1 : dow === 5 ? 0.75 : 0.6;
   const wxF = (1 - 0.6 * p / 100) * (cloud > 80 ? 0.75 : 1) * (temp >= 28 ? 1 : 0.85);
   const hour = +w.time[wi].slice(11,13);
-  const c = clamp(b.crowd * dayF * wxF * (CROWD_HOUR[hour] ?? 0.5), 0, 1);
+  let c = clamp(b.crowd * dayF * wxF * (CROWD_HOUR[hour] ?? 0.5), 0, 1);
+  const rp = reportFor(b.id, day); if (rp) c = rp.c;
   const crowdS = clamp(100 - 70 * c * (b.small ? 1.3 : 1));
 
   const travel = b.walk && b.walk <= 20 ? b.walk : (b.uber ?? 30) + 5;
@@ -503,7 +520,48 @@ const COORDS = {posto6:[-22.9866,-43.1883], copa:[-22.9745,-43.1862], arpoador:[
 const SVG_WALK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M10.5 8.5 8 20h2.2l1.6-7 2.2 2.2V20h2v-6l-2.2-2.2.6-3A6 6 0 0 0 19 12v-2a4 4 0 0 1-3.4-1.9l-1-1.6A2 2 0 0 0 12 5.6L7 7.7V12h2V9z"/></svg>';
 const SVG_CAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11a2 2 0 0 1 2 2v4h-2v2h-3v-2H8v2H5v-2H3v-4a2 2 0 0 1 2-2zm2.1 0h9.8l-1-3H8.1zM6.5 15a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>';
 
-let VOTES = {}, MY_ID = null, USER = null, DB = null, PROFILES = {}, NOW_H = null;
+let VOTES = {}, MY_ID = null, USER = null, DB = null, PROFILES = {}, NOW_H = null, REPORTS = {}, RELOAD = null;
+const LEVELS = {poca:{c:0.2, txt:"Poca gente"}, media:{c:0.5, txt:"Gente media"}, llena:{c:0.88, txt:"Llena"}};
+// Último reporte del grupo para una playa, válido 2 horas y solo para hoy.
+function reportFor(beachId, day){
+  if (typeof REPORTS === "undefined" || day !== rioToday()) return null;
+  let best = null;
+  for (const id in REPORTS){ const r = REPORTS[id]; if (r && r.beach === beachId && LEVELS[r.level] && Date.now() - r.at < 2 * 3600e3 && (!best || r.at > best.at)) best = {...r, who:id}; }
+  return best ? {...best, c: LEVELS[best.level].c} : null;
+}
+function ago(ts){ const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? `hace ${m} min` : `hace ${Math.floor(m/60)} h ${m%60 ? (m%60) + " min" : ""}`.trim(); }
+function reportBox(b, onSky){
+  const box = el("div","report" + (onSky ? " on-sky" : "")); box.dataset.report = b.id; box.hidden = true;
+  const q = el("div","rep-q", "¿Cuánta gente hay ahora?");
+  const seg = el("div","rep-seg"); seg.setAttribute("role","group"); seg.setAttribute("aria-label", `Reportar gente en ${b.name}`);
+  Object.entries(LEVELS).forEach(([k, v]) => { const x = el("button", null, v.txt.replace(" gente","")); x.type = "button"; x.dataset.level = k; x.onclick = () => sendReport(b, k); seg.append(x); });
+  box.append(q, seg, el("div","rep-status"));
+  return box;
+}
+async function sendReport(b, level){
+  if (!DB || !MY_ID){ toast("Para reportar abrí la versión de Claude con tu cuenta."); return; }
+  try { await DB.doc("reports/" + MY_ID).set({beach: b.id, level, at: Date.now()}); toast(`Gracias: ${LEVELS[level].txt.toLowerCase()} en ${b.short || b.name}.`); }
+  catch(e){ toast(e && e.code === "not_granted" ? "No tenés permiso para reportar. Pedile al dueño acceso de colaborador." : "No se pudo guardar. Probá de nuevo."); }
+}
+async function paintReports(){
+  const today = DAY === rioToday();
+  const ids = Object.keys(REPORTS);
+  if (USER && ids.length){ try { Object.assign(PROFILES, await USER.profiles(ids)); } catch(e){} }
+  document.querySelectorAll("[data-report]").forEach(box => {
+    box.hidden = !(DB && MY_ID && today);
+    const r = reportFor(box.dataset.report, DAY), st = box.querySelector(".rep-status");
+    box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", !!(r && r.who === MY_ID && r.level === x.dataset.level)));
+    if (!r){ st.textContent = "Nadie reportó en las últimas 2 horas. Si estás ahí, tocá una opción."; return; }
+    const who = r.who === MY_ID ? "vos" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0];
+    st.replaceChildren(el("b", null, LEVELS[r.level].txt), ` · ${ago(r.at)}, lo reportó ${who}. Ya cuenta en el puntaje.`);
+  });
+}
+async function refreshAll(btnEl){
+  if (!RELOAD) return;
+  btnEl.classList.add("spin"); btnEl.disabled = true;
+  try { toast(await RELOAD()); } catch(e){ toast("No se pudo actualizar. Probá de nuevo en un rato."); }
+  finally { btnEl.classList.remove("spin"); btnEl.disabled = false; }
+}
 
 function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2200); }
 function rioNowHour(){ return +new Intl.DateTimeFormat("en-GB",{timeZone:"America/Sao_Paulo", hour:"2-digit", hourCycle:"h23"}).format(new Date()); }
@@ -658,6 +716,7 @@ function render(){
   const share = btn("btn-glass vote", '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.2-.3.3-.1.6.2.3.7 1.2 1.6 2 1.1 1 2 1.3 2.3 1.4.3.2.5.1.6-.1l.8-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.2z"/></svg>Compartir el plan', "#", "Compartir el plan por WhatsApp");
   const acts = el("div","actions"); acts.append(liveBtn(top.b, "btn-white"), goBtn(top.b, "btn-glass"), voteBtn(top, "btn-glass"), share); hero.append(acts);
   hero.append(going(top.b.id));
+  hero.append(reportBox(top.b, true));
   app.append(hero);
 
   // Plan B
@@ -668,6 +727,7 @@ function render(){
     c.append(l, s, el("div","why", line(alt)));
     const a = el("div","actions"); a.append(liveBtn(alt.b, "btn-gray"), goBtn(alt.b, "btn-gray"), voteBtn(alt, "btn-gray")); c.append(a);
     const g = going(alt.b.id); g.style.gridColumn = "1 / -1"; c.append(g);
+    const rb = reportBox(alt.b); rb.style.gridColumn = "1 / -1"; c.append(rb);
     app.append(c);
   }
   const outside = ranked.find(r => !r.b.group);
@@ -714,6 +774,7 @@ function render(){
     more.append(el("p", null, r.wq === "propria" ? "Agua apta según el INEA." : r.wq === "impropria" ? "Agua NO apta según el INEA." : "Sin dato reciente del INEA."));
     more.append(el("p", null, r.b.tip));
     const a = el("div","actions"); a.append(liveBtn(r.b, "btn-gray"), btn("btn-gray", "Mapa", mapsUrl(r.b), `Ver ${r.b.name} en el mapa`)); more.append(a);
+    more.append(reportBox(r.b));
     d.append(more); all.append(d);
   });
   app.append(all);
@@ -737,7 +798,7 @@ function render(){
   // Clima por hora: centrar en ahora o en el horario de playa
   const strip = app.querySelector(".hstrip");
   if (strip){ const cells = [...strip.children]; const target = cells.find(c => (c.getAttribute("aria-label")||"").startsWith(`${NOW_H ?? 9} horas`)) || cells[2]; if (target) strip.scrollLeft = Math.max(0, target.offsetLeft - 12); }
-  paintVotes();
+  paintVotes(); paintReports();
 }
 
 async function boot(){
@@ -752,11 +813,24 @@ async function boot(){
       const r = await fetch("forecast.json?t=" + Date.now(), {cache: "no-store"});
       if (!r.ok) throw new Error(r.status);
       const d = await r.json(); last = Date.now();
-      if (!DATA || d.updatedAt !== DATA.updatedAt){ DATA = d; render(); }
+      // Solo reemplaza si lo publicado es más nuevo (no pisa una actualización en vivo).
+      if (!DATA || new Date(d.updatedAt) > new Date(DATA.updatedAt)){ DATA = {...d, ...(DATA && DATA.meteored && !d.meteored ? {meteored: DATA.meteored} : {})}; render(); }
     };
     // Se actualiza sola: cada 15 min y cada vez que volvés a abrir la app.
     setInterval(() => load().catch(() => {}), 15 * 60 * 1000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last > 5 * 60 * 1000) load().catch(() => {}); });
+    const MARINE = "https://marine-api.open-meteo.com/v1/marine?latitude=-22.99&longitude=-43.19&timezone=America/Sao_Paulo&forecast_days=3&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,wind_wave_height,sea_level_height_msl,sea_surface_temperature";
+    const WX = "https://api.open-meteo.com/v1/forecast?latitude=-22.985&longitude=-43.19&timezone=America/Sao_Paulo&forecast_days=3&past_days=1&wind_speed_unit=kmh&hourly=temperature_2m,precipitation_probability,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&daily=sunrise,sunset,precipitation_sum";
+    // Botón de actualizar: trae lo último publicado y además el pronóstico en vivo de Open-Meteo.
+    RELOAD = async () => {
+      await load().catch(() => {});
+      const q = u => fetch(u, {cache: "no-store"}).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      const [mar, wx] = await Promise.all([q(MARINE), q(WX)]);
+      DATA = {...DATA, updatedAt: new Date().toISOString(), source: "Open-Meteo (en vivo desde la app)",
+        marine: {...mar.hourly}, weather: {...wx.hourly}, daily: wx.daily};
+      render();
+      return "Listo: pronóstico de este momento.";
+    };
     try {
       await load(); clearTimeout(timer);
     } catch(e){
@@ -766,6 +840,12 @@ async function boot(){
     return;
   }
   DB = db;
+  RELOAD = async () => {
+    const s = await db.doc("forecast/latest").get(); const d = s.data();
+    if (d){ DATA = d; render(); }
+    const t = new Date(DATA.updatedAt).toLocaleTimeString("es-AR",{timeZone:"America/Sao_Paulo", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
+    return `Tenés lo último que hay acá (de las ${t}). Para el pronóstico al minuto usá la app pública.`;
+  };
   db.doc("forecast/latest").onSnapshot(snap => {
     clearTimeout(timer);
     const d = snap.data();
@@ -780,7 +860,11 @@ async function boot(){
     VOTES = {}; qs.docs.forEach(d => { VOTES[d.id] = d.data(); });
     if (DATA) paintVotes();
   }, () => {});
-  if (DATA) paintVotes();
+  db.collection("reports").onSnapshot(qs => {
+    REPORTS = {}; qs.docs.forEach(d => { REPORTS[d.id] = d.data(); });
+    if (DATA) render();
+  }, () => {});
+  if (DATA){ paintVotes(); paintReports(); }
 }
 boot();
 </script>
