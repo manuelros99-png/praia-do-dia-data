@@ -545,15 +545,15 @@ async function sendReport(b, level){
 }
 async function paintReports(){
   const today = DAY === rioToday();
-  const ids = Object.keys(REPORTS);
+  const ids = Object.keys(REPORTS).filter(id => !id.startsWith("cam-"));
   if (USER && ids.length){ try { Object.assign(PROFILES, await USER.profiles(ids)); } catch(e){} }
   document.querySelectorAll("[data-report]").forEach(box => {
     box.hidden = !(DB && MY_ID && today);
     const r = reportFor(box.dataset.report, DAY), st = box.querySelector(".rep-status");
     box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", !!(r && r.who === MY_ID && r.level === x.dataset.level)));
     if (!r){ st.textContent = "Nadie reportó en las últimas 2 horas. Si estás ahí, tocá una opción."; return; }
-    const who = r.who === MY_ID ? "vos" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0];
-    st.replaceChildren(el("b", null, LEVELS[r.level].txt), ` · ${ago(r.at)}, lo reportó ${who}. Ya cuenta en el puntaje.`);
+    const who = r.source === "camara" ? "Claude mirando la cámara" : r.who === MY_ID ? "vos" : ((PROFILES[r.who] && PROFILES[r.who].name) || "alguien del grupo").split(" ")[0];
+    st.replaceChildren(el("b", null, LEVELS[r.level].txt), ` · ${ago(r.at)}, lo reportó ${who}.${r.note ? " " + r.note : ""} Ya cuenta en el puntaje.`);
   });
 }
 async function refreshAll(btnEl){
