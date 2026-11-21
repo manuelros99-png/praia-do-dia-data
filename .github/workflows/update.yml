@@ -14,7 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Pronóstico Open-Meteo
-        run: python3 fetch_forecast.py forecast.json
+        # Si Open-Meteo no responde, se queda el pronóstico anterior y se reintenta en la próxima hora.
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python3 fetch_forecast.py forecast.new.json && mv forecast.new.json forecast.json
       - name: Lluvia por hora de Meteored
         continue-on-error: true
         run: python3 fetch_meteored.py forecast.json

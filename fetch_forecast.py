@@ -10,16 +10,26 @@ import json, sys, time, urllib.request, datetime
 LAT, LON = -22.99, -43.19  # frente a Copacabana/Arpoador
 TZ = "America/Sao_Paulo"
 
-def get(url, tries=4):
+def get(url, tries=5):
+    """Baja JSON con reintentos. Open-Meteo a veces responde 429 (demasiados pedidos) a las
+    máquinas compartidas de GitHub: esperamos lo que pide (Retry-After) o cada vez más."""
+    req = urllib.request.Request(url, headers={"User-Agent": "praia-do-dia/1.0 (forecast for personal trip app)"})
     for i in range(tries):
         try:
-            with urllib.request.urlopen(url, timeout=40) as r:
+            with urllib.request.urlopen(req, timeout=40) as r:
                 return json.load(r)
         except Exception as e:
             if i == tries - 1:
                 raise
-            print(f"reintento {i+1}: {e}")
-            time.sleep(20 * (i + 1))
+            wait = 30 * (i + 1)
+            if getattr(e, "code", None) == 429:
+                try:
+                    wait = max(wait, int(e.headers.get("Retry-After", 0)))
+                except Exception:
+                    pass
+                wait = max(wait, 60)
+            print(f"reintento {i+1} en {wait}s: {e}")
+            time.sleep(wait)
 
 marine = get(
     "https://marine-api.open-meteo.com/v1/marine"
