@@ -716,7 +716,7 @@ function render(){
   const app = $("#app"); app.replaceChildren();
   const today = rioToday();
   const days = [...new Set(DATA.marine.time.map(t => t.slice(0,10)))].filter(d => d >= today);
-  if (!days.length){ app.append(el("p","empty","El pronóstico guardado es viejo. Se actualiza solo cada mañana.")); return; }
+  if (!days.length){ app.append(el("p","empty",window.claude ? "El pronóstico guardado es viejo y esta versión ya no se actualiza sola. Para ver el de hoy abrí la app pública y tocá el botón de actualizar." : "El pronóstico guardado es viejo. Tocá el botón de actualizar (arriba a la derecha) para traer el de ahora.")); return; }
   if (!days.includes(DAY)) DAY = days[0] === today && rioNowHour() >= 17 && days[1] ? days[1] : days[0];
   const nav = $("#days"); nav.replaceChildren();
   days.forEach((d,i) => {
@@ -829,7 +829,7 @@ function render(){
   const how = el("details","how"); how.append(el("summary", null, "Cómo se calcula"));
   how.append(el("p", null, "Olas y viento salen de Open-Meteo y se ajustan a cada playa según hacia dónde mira y cuánto la protegen las piedras. La lluvia promedia Meteored y Open-Meteo. El puntaje premia olas de 0,4 a 1 m para barrenar, viento suave o de tierra, poca lluvia, menos gente y que quede cerca. La gente y el lugar para fútbol son estimaciones: miren la cámara antes de salir."));
   const upd = new Date(DATA.updatedAt), stale = (Date.now() - upd) / 36e5 > 30;
-  how.append(el("p", null, `Datos actualizados el ${upd.toLocaleString("es-AR",{timeZone:"America/Sao_Paulo", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit", hourCycle:"h23"})} (hora de Rio)${stale ? ". Son viejos: la actualización automática no corrió." : "."}`));
+  how.append(el("p", null, `Datos actualizados el ${upd.toLocaleString("es-AR",{timeZone:"America/Sao_Paulo", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit", hourCycle:"h23"})} (hora de Rio)${stale ? ". Para traer el de ahora tocá el botón de actualizar (arriba a la derecha)." : "."}`));
   app.append(how);
 
   // Clima por hora: centrar en ahora o en el horario de playa
@@ -853,9 +853,7 @@ async function boot(){
       // Solo reemplaza si lo publicado es más nuevo (no pisa una actualización en vivo).
       if (!DATA || new Date(d.updatedAt) > new Date(DATA.updatedAt)){ DATA = {...d, ...(DATA && DATA.meteored && !d.meteored ? {meteored: DATA.meteored} : {})}; render(); }
     };
-    // Se actualiza sola: cada 15 min y cada vez que volvés a abrir la app.
-    setInterval(() => load().catch(() => {}), 15 * 60 * 1000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last > 5 * 60 * 1000) load().catch(() => {}); });
+    // Sin actualizaciones automáticas: solo se actualiza al tocar el botón.
     const MARINE = "https://marine-api.open-meteo.com/v1/marine?latitude=-22.99&longitude=-43.19&timezone=America/Sao_Paulo&forecast_days=3&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,wind_wave_height,sea_level_height_msl,sea_surface_temperature";
     const WX = "https://api.open-meteo.com/v1/forecast?latitude=-22.985&longitude=-43.19&timezone=America/Sao_Paulo&forecast_days=3&past_days=1&wind_speed_unit=kmh&hourly=temperature_2m,precipitation_probability,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&daily=sunrise,sunset,precipitation_sum";
     // Botón de actualizar: trae lo último publicado y además el pronóstico en vivo de Open-Meteo.
@@ -881,12 +879,12 @@ async function boot(){
     const s = await db.doc("forecast/latest").get(); const d = s.data();
     if (d){ DATA = d; render(); }
     const t = new Date(DATA.updatedAt).toLocaleTimeString("es-AR",{timeZone:"America/Sao_Paulo", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
-    return `Tenés lo último que hay acá (de las ${t}). Para el pronóstico al minuto usá la app pública.`;
+    return `Esta versión ya no se actualiza sola (datos de las ${t}). Para el pronóstico de ahora usá la app pública y tocá actualizar.`;
   };
   db.doc("forecast/latest").onSnapshot(snap => {
     clearTimeout(timer);
     const d = snap.data();
-    if (!d){ loading.textContent = "Todavía no hay pronóstico guardado. Se carga solo cada mañana."; document.querySelector(".skel")?.remove(); return; }
+    if (!d){ loading.textContent = "Todavía no hay pronóstico guardado."; document.querySelector(".skel")?.remove(); return; }
     DATA = d; render();
   }, err => { clearTimeout(timer); loading.textContent = "No pude leer el pronóstico (" + (err && err.code || "error") + "). Recargá la página."; });
   try {

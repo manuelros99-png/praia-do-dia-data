@@ -1,9 +1,5 @@
 name: Actualizar pronóstico
 on:
-  schedule:
-    # Cada hora al minuto 17 (evita la congestión de la hora en punto, cuando GitHub
-    # suele saltear corridas), del 20 al 30 de noviembre, de 4:17 a 21:17 hora de Rio.
-    - cron: "17 7-23,0 20-30 11 *"
   workflow_dispatch:
 permissions:
   contents: write
